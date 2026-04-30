@@ -25,6 +25,8 @@ func main() {
 		regressCmd(os.Args[2:])
 	case "stats":
 		statsCmd(os.Args[2:])
+	case "query":
+		queryCmd(os.Args[2:])
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
 		usage()
@@ -40,6 +42,7 @@ Commands:
   forge    Explicit large Forge expansion
   regress  Build regression corpus from previous results
   stats    Show corpus statistics
+  query    Filter and inspect a corpus file
 
 Run visorcorpus <command> -help for flags.`)
 }
@@ -318,6 +321,182 @@ func parseDomains(s string) []vc.Domain {
 		}
 	}
 	return out
+}
+
+// ─── query ────────────────────────────────────────────────────────────────────
+
+func queryCmd(args []string) {
+	fs := flag.NewFlagSet("query", flag.ExitOnError)
+	in := fs.String("in", "", "Input corpus JSON file (required)")
+	profileStr := fs.String("profile", "", "Filter by profile: standard|strict|lenient (empty = any)")
+	catStr := fs.String("category", "", "Comma-separated categories (empty = any)")
+	domStr := fs.String("domain", "", "Comma-separated domains: hr|finance|cloud|healthcare (empty = any)")
+	diffStr := fs.String("difficulty", "", "Comma-separated difficulty tags (empty = any)")
+	lengthStr := fs.String("length", "", "Comma-separated length hints: short|medium|long (empty = any)")
+	vecStr := fs.String("vector", "", "Comma-separated attack vectors (empty = any)")
+	limit := fs.Int("limit", 20, "Max matching cases to print (0 = no limit)")
+	asJSON := fs.Bool("json", false, "Output matching cases as JSON array")
+	count := fs.Bool("count", false, "Print only match count, not cases")
+	fs.Parse(args)
+
+	if *in == "" {
+		fmt.Fprintln(os.Stderr, "-in is required")
+		os.Exit(1)
+	}
+
+	f, err := os.Open(*in)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "open: %v\n", err)
+		os.Exit(1)
+	}
+	defer f.Close()
+
+	var cases []vc.AttackCase
+	if err := json.NewDecoder(f).Decode(&cases); err != nil {
+		fmt.Fprintf(os.Stderr, "decode: %v\n", err)
+		os.Exit(1)
+	}
+
+	profFilter := parseProfilePtr(*profileStr)
+	catFilter := parseStringSet(*catStr)
+	domFilter := parseStringSet(*domStr)
+	diffFilter := parseStringSet(*diffStr)
+	lenFilter := parseStringSet(*lengthStr)
+	vecFilter := parseStringSet(*vecStr)
+
+	var matches []vc.AttackCase
+	for _, c := range cases {
+		if !matchProfilePtr(c.Profile, profFilter) {
+			continue
+		}
+		if !matchStringSet(string(c.Category), catFilter) {
+			continue
+		}
+		if !matchStringSet(string(c.Domain), domFilter) {
+			continue
+		}
+		if !matchStringSet(c.LengthHint, lenFilter) {
+			continue
+		}
+		if !matchStringSet(string(c.AttackVector), vecFilter) {
+			continue
+		}
+		if !matchTag(c.Tags, "difficulty", diffFilter) {
+			continue
+		}
+		matches = append(matches, c)
+	}
+
+	if *count {
+		fmt.Printf("%d\n", len(matches))
+		return
+	}
+
+	if *limit > 0 && len(matches) > *limit {
+		matches = matches[:*limit]
+	}
+
+	if *asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(matches); err != nil {
+			fmt.Fprintf(os.Stderr, "encode: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	printMatchesHuman(matches)
+}
+
+func parseProfilePtr(s string) *vc.Profile {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return nil
+	}
+	p := parseProfile(s)
+	return &p
+}
+
+func parseStringSet(s string) map[string]bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	parts := strings.Split(s, ",")
+	set := make(map[string]bool, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(strings.ToLower(p))
+		if p != "" {
+			set[p] = true
+		}
+	}
+	return set
+}
+
+func matchProfilePtr(p vc.Profile, filter *vc.Profile) bool {
+	if filter == nil {
+		return true
+	}
+	return p == *filter
+}
+
+func matchStringSet(val string, set map[string]bool) bool {
+	if set == nil {
+		return true
+	}
+	return set[strings.ToLower(val)]
+}
+
+func matchTag(tags map[string]string, key string, set map[string]bool) bool {
+	if set == nil {
+		return true
+	}
+	if tags == nil {
+		return false
+	}
+	return set[strings.ToLower(tags[key])]
+}
+
+func printMatchesHuman(cases []vc.AttackCase) {
+	if len(cases) == 0 {
+		fmt.Println("No matching cases.")
+		return
+	}
+	for _, c := range cases {
+		fmt.Printf("ID: %s\n", c.ID)
+		fmt.Printf("  Profile:   %s\n", c.Profile)
+		fmt.Printf("  Category:  %s\n", c.Category)
+		if c.Domain != vc.DomainNone {
+			fmt.Printf("  Domain:    %s\n", c.Domain)
+		}
+		if c.AttackVector != "" {
+			fmt.Printf("  Vector:    %s\n", c.AttackVector)
+		}
+		fmt.Printf("  Severity:  %s\n", c.Severity)
+		if c.LengthHint != "" {
+			fmt.Printf("  Length:    %s\n", c.LengthHint)
+		}
+		if len(c.Tags) > 0 {
+			parts := make([]string, 0, len(c.Tags))
+			for k, v := range c.Tags {
+				parts = append(parts, k+"="+v)
+			}
+			sort.Strings(parts)
+			fmt.Printf("  Tags:      %s\n", strings.Join(parts, ", "))
+		}
+		fmt.Printf("  Desc:      %s\n", c.Description)
+		fmt.Printf("  Prompt:\n%s\n\n", indentBlock(c.Prompt, "    "))
+	}
+	fmt.Printf("── %d case(s) ──\n", len(cases))
+}
+
+func indentBlock(s, prefix string) string {
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 func writeJSON(v any, path string) {

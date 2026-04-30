@@ -1,27 +1,32 @@
 package corpus
 
 // AddDomainSeeds appends domain-specific seed cases to an existing corpus.
+// All appended cases have their Domain field stamped with the given domain.
 // Multiple calls stack — combine domains by calling this in a loop.
 func AddDomainSeeds(cases []AttackCase, profile Profile, domain Domain) []AttackCase {
+	var new []AttackCase
 	switch domain {
 	case DomainHR:
-		cases = append(cases, BuildCases(profile, CategoryKBExfiltration, SeverityHigh, "hr_kb", "medium", hrKBExfilSeeds())...)
-		cases = append(cases, BuildCases(profile, CategoryTenantCrossLeak, SeverityHigh, "hr_cross", "medium", hrTenantCrossLeakSeeds())...)
-		cases = append(cases, BuildCases(profile, CategoryQualityProbe, SeverityLow, "hr_benign", "short", hrBenignSeeds())...)
+		new = append(new, BuildCases(profile, CategoryKBExfiltration, SeverityHigh, "hr_kb", "medium", hrKBExfilSeeds())...)
+		new = append(new, BuildCases(profile, CategoryTenantCrossLeak, SeverityHigh, "hr_cross", "medium", hrTenantCrossLeakSeeds())...)
+		new = append(new, BuildCases(profile, CategoryQualityProbe, SeverityLow, "hr_benign", "short", hrBenignSeeds())...)
 	case DomainFinance:
-		cases = append(cases, BuildCases(profile, CategoryKBExfiltration, SeverityHigh, "fin_kb", "medium", financeKBExfilSeeds())...)
-		cases = append(cases, BuildCases(profile, CategoryTenantCrossLeak, SeverityHigh, "fin_cross", "medium", financeCrossLeakSeeds())...)
-		cases = append(cases, BuildCases(profile, CategoryQualityProbe, SeverityLow, "fin_benign", "short", financeBenignSeeds())...)
+		new = append(new, BuildCases(profile, CategoryKBExfiltration, SeverityHigh, "fin_kb", "medium", financeKBExfilSeeds())...)
+		new = append(new, BuildCases(profile, CategoryTenantCrossLeak, SeverityHigh, "fin_cross", "medium", financeCrossLeakSeeds())...)
+		new = append(new, BuildCases(profile, CategoryQualityProbe, SeverityLow, "fin_benign", "short", financeBenignSeeds())...)
 	case DomainCloud:
-		cases = append(cases, BuildCases(profile, CategoryInfraDiscovery, SeverityHigh, "cloud_infra", "medium", cloudInfraSeeds())...)
-		cases = append(cases, BuildCases(profile, CategoryConfigSecrets, SeverityHigh, "cloud_secrets", "medium", cloudSecretsSeeds())...)
-		cases = append(cases, BuildCases(profile, CategoryQualityProbe, SeverityLow, "cloud_benign", "short", cloudBenignSeeds())...)
+		new = append(new, BuildCases(profile, CategoryInfraDiscovery, SeverityHigh, "cloud_infra", "medium", cloudInfraSeeds())...)
+		new = append(new, BuildCases(profile, CategoryConfigSecrets, SeverityHigh, "cloud_secrets", "medium", cloudSecretsSeeds())...)
+		new = append(new, BuildCases(profile, CategoryQualityProbe, SeverityLow, "cloud_benign", "short", cloudBenignSeeds())...)
 	case DomainHealthcare:
-		cases = append(cases, BuildCases(profile, CategoryKBExfiltration, SeverityHigh, "hc_kb", "medium", healthcareKBExfilSeeds())...)
-		cases = append(cases, BuildCases(profile, CategoryTenantCrossLeak, SeverityHigh, "hc_phi", "medium", healthcarePHISeeds())...)
-		cases = append(cases, BuildCases(profile, CategoryQualityProbe, SeverityLow, "hc_benign", "short", healthcareBenignSeeds())...)
+		new = append(new, BuildCases(profile, CategoryKBExfiltration, SeverityHigh, "hc_kb", "medium", healthcareKBExfilSeeds())...)
+		new = append(new, BuildCases(profile, CategoryTenantCrossLeak, SeverityHigh, "hc_phi", "medium", healthcarePHISeeds())...)
+		new = append(new, BuildCases(profile, CategoryQualityProbe, SeverityLow, "hc_benign", "short", healthcareBenignSeeds())...)
 	}
-	return cases
+	for i := range new {
+		new[i].Domain = domain
+	}
+	return append(cases, new...)
 }
 
 // ── HR ───────────────────────────────────────────────────────────────────────
