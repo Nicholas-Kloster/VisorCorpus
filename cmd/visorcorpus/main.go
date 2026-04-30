@@ -11,46 +11,128 @@ import (
 	vc "github.com/Nicholas-Kloster/VisorCorpus/pkg/corpus"
 )
 
+const version = "0.2.0"
+
+const banner = `
+ __     ___           ___              ___
+ \ \   / (_)___ _ __ / __\___  _ __   / __\___  _ __  _   _
+  \ \ / /| / __| '__/ /  / _ \| '_ \ / /  / _ \| '_ \| | | |
+   \ V / | \__ \ | / /__| (_) | | | / /__| (_) | |_) | |_| |
+    \_/  |_|___/_| \____/\___/|_| |_\____/\___/| .__/ \__, |
+                                               |_|    |___/
+
+  V I S O R C O R P U S  –  Adversarial & Quality Corpus Toolkit  v` + version
+
 func main() {
+	if len(os.Args) >= 2 {
+		switch os.Args[1] {
+		case "-h", "--help", "help":
+			usage()
+			return
+		case "-v", "--version", "version":
+			fmt.Println("visorcorpus version " + version)
+			return
+		case "--banner":
+			fmt.Println(banner)
+			return
+		}
+	}
+
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(1)
 	}
-	switch os.Args[1] {
-	case "build":
-		buildCmd(os.Args[2:])
-	case "forge":
-		forgeCmd(os.Args[2:])
-	case "regress":
-		regressCmd(os.Args[2:])
-	case "stats":
-		statsCmd(os.Args[2:])
-	case "query":
-		queryCmd(os.Args[2:])
+
+	cmd := os.Args[1]
+	args := os.Args[2:]
+	switch cmd {
+	case "build", "b":
+		buildCmd(args)
+	case "forge", "f":
+		forgeCmd(args)
+	case "regress", "r":
+		regressCmd(args)
+	case "stats", "s":
+		statsCmd(args)
+	case "query", "q":
+		queryCmd(args)
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", cmd)
 		usage()
 		os.Exit(1)
 	}
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `visorcorpus — VisorCorpus corpus builder
+	fmt.Println(banner)
+	fmt.Println(`
+Usage: visorcorpus <command> [options]
 
 Commands:
-  build    Build a corpus from profile + build type + filters
-  forge    Explicit large Forge expansion
-  regress  Build regression corpus from previous results
-  stats    Show corpus statistics
-  query    Filter and inspect a corpus file
+  build  (b)   Build a corpus variant (baseline/stress/focused/randomized/hybrid)
+  forge  (f)   Expand seeds into a large adversarial corpus via Forge
+  regress (r)  Build a regression corpus from a previous results.json
+  stats  (s)   Show stats for a corpus JSON file
+  query  (q)   Query/filter a corpus JSON file
 
-Run visorcorpus <command> -help for flags.`)
+Run 'visorcorpus <command> -h' for detailed flags.
+
+Examples:
+  visorcorpus build -profile strict -type baseline -max 500 -out strict_500.json
+  visorcorpus build -profile strict -type randomized -max 400 -seed 123 -out rand_400.json
+  visorcorpus build -profile strict -type hybrid -max 600 \
+    -guaranteed prompt_injection,kb_exfiltration -guaranteed-min 100 \
+    -guaranteed-severity HIGH -out hybrid_600.json
+  visorcorpus build -profile strict -domain hr,cloud -protocol -out hr_cloud.json
+  visorcorpus forge -profile strict -templates=true -max-base 100 -max 5000 -out forged_5k.json
+  visorcorpus stats -in forged_5k.json
+  visorcorpus query -in forged_5k.json -domain hr -category kb_exfiltration -difficulty hard
+  visorcorpus regress -in results.json -out regression.json`)
 }
 
 // ─── build ────────────────────────────────────────────────────────────────────
 
 func buildCmd(args []string) {
 	fs := flag.NewFlagSet("build", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, `Usage: visorcorpus build [options]
+
+Build a corpus variant from built-in seeds, templates, and optionally Forge.
+
+Profile/type:
+  -profile standard|strict|lenient   (default: standard)
+  -type    baseline|stress|focused|randomized|hybrid   (default: baseline)
+
+Filtering:
+  -include  comma-separated categories to include (empty = all)
+  -exclude  comma-separated categories to exclude
+  -domain   domain seeds: hr|finance|cloud|healthcare
+  -difficulty  filter output by Tags["difficulty"]: easy|medium|hard
+
+Augmentation:
+  -protocol         add protocol-level + tool-abuse seeds
+  -difficulty-seeds add easy/medium/hard difficulty-labeled PI seeds
+
+Randomized / hybrid:
+  -seed               RNG seed (0 = time-based)
+  -weighted-severity  bias toward CRITICAL/HIGH (default: true)
+  -weighted-category  bias toward prompt_injection/kb_exfiltration (default: true)
+  -weighted-domain    bias toward regulated domains (default: false)
+  -guaranteed         hybrid: comma-separated categories always included
+  -guaranteed-min     hybrid: min cases per guaranteed category (default: 50)
+  -guaranteed-severity hybrid: CRITICAL|HIGH|MEDIUM|LOW threshold (empty = any)
+
+Output:
+  -max  max cases (0 = no limit)
+  -out  output JSON file (default stdout)
+
+Examples:
+  visorcorpus build -profile strict -type baseline -max 500 -out strict_500.json
+  visorcorpus build -type randomized -max 200 -seed 42 -out rand_200.json
+  visorcorpus build -profile strict -type hybrid -max 600 \
+    -guaranteed prompt_injection,kb_exfiltration -guaranteed-min 100 \
+    -guaranteed-severity HIGH -out hybrid_600.json`)
+	}
 	profileStr := fs.String("profile", "standard", "Corpus profile: standard|strict|lenient")
 	buildTypeStr := fs.String("type", "baseline", "Build type: baseline|stress|focused|randomized|hybrid")
 	includeCats := fs.String("include", "", "Comma-separated categories to include (empty = all)")
@@ -132,6 +214,17 @@ func buildCmd(args []string) {
 
 func forgeCmd(args []string) {
 	fs := flag.NewFlagSet("forge", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, `Usage: visorcorpus forge [options]
+
+Expand seeds into a large adversarial corpus using templates + mutators.
+
+Options:`)
+		fs.PrintDefaults()
+		fmt.Fprintln(os.Stderr, `
+Example:
+  visorcorpus forge -profile strict -templates=true -max-base 100 -max 5000 -out forged_5k.json`)
+	}
 	profileStr := fs.String("profile", "strict", "Profile: standard|strict|lenient")
 	useTemplates := fs.Bool("templates", true, "Include template-generated cases")
 	maxBase := fs.Int("max-base", 100, "Max base cases as forge seeds")
@@ -170,6 +263,18 @@ func forgeCmd(args []string) {
 
 func regressCmd(args []string) {
 	fs := flag.NewFlagSet("regress", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, `Usage: visorcorpus regress -in results.json [-out regression.json]
+
+Extract UNSAFE / BENIGN_REFUSAL / LOW_QUALITY cases from a previous results file
+into a new corpus for targeted regression testing.
+
+Options:`)
+		fs.PrintDefaults()
+		fmt.Fprintln(os.Stderr, `
+Example:
+  visorcorpus regress -in results_sp_v1.json -out regression_cases.json`)
+	}
 	in := fs.String("in", "", "Input results JSON from attack-sim (required)")
 	out := fs.String("out", "", "Output corpus JSON (default stdout)")
 	fs.Parse(args)
@@ -201,6 +306,19 @@ func regressCmd(args []string) {
 
 func statsCmd(args []string) {
 	fs := flag.NewFlagSet("stats", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, `Usage: visorcorpus stats [-in file.json] [-profile standard|strict|lenient]
+
+Show counts by category, severity, attack vector, domain, and length.
+Pass -in for a pre-built file or -profile to build from a profile on the fly.
+
+Options:`)
+		fs.PrintDefaults()
+		fmt.Fprintln(os.Stderr, `
+Examples:
+  visorcorpus stats -in forged_5k.json
+  visorcorpus stats -profile strict -type baseline`)
+	}
 	in := fs.String("in", "", "Input corpus JSON file (required)")
 	profileStr := fs.String("profile", "", "Build from profile instead of file: standard|strict|lenient")
 	buildTypeStr := fs.String("type", "baseline", "Build type when using -profile")
@@ -354,6 +472,25 @@ func parseDomains(s string) []vc.Domain {
 
 func queryCmd(args []string) {
 	fs := flag.NewFlagSet("query", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintln(os.Stderr, `Usage: visorcorpus query -in file.json [filters]
+
+Filter and inspect a corpus JSON file. All filters are optional; omitting one
+means "any value". Multiple values for one filter are comma-separated.
+
+Options:`)
+		fs.PrintDefaults()
+		fmt.Fprintln(os.Stderr, `
+Examples:
+  # HR KB exfil, hard difficulty, medium length
+  visorcorpus query -in forged_5k.json -domain hr -category kb_exfiltration -difficulty hard -length medium
+
+  # Count cloud config_secrets cases
+  visorcorpus query -in forged_5k.json -domain cloud -category config_secrets -count
+
+  # JSON output for piping
+  visorcorpus query -in forged_5k.json -difficulty hard -json > hard.json`)
+	}
 	in := fs.String("in", "", "Input corpus JSON file (required)")
 	profileStr := fs.String("profile", "", "Filter by profile: standard|strict|lenient (empty = any)")
 	catStr := fs.String("category", "", "Comma-separated categories (empty = any)")
