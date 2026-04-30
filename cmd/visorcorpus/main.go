@@ -52,7 +52,7 @@ Run visorcorpus <command> -help for flags.`)
 func buildCmd(args []string) {
 	fs := flag.NewFlagSet("build", flag.ExitOnError)
 	profileStr := fs.String("profile", "standard", "Corpus profile: standard|strict|lenient")
-	buildTypeStr := fs.String("type", "baseline", "Build type: baseline|stress|focused|randomized")
+	buildTypeStr := fs.String("type", "baseline", "Build type: baseline|stress|focused|randomized|hybrid")
 	includeCats := fs.String("include", "", "Comma-separated categories to include (empty = all)")
 	excludeCats := fs.String("exclude", "", "Comma-separated categories to exclude")
 	domainStr := fs.String("domain", "", "Comma-separated domain seeds: hr|finance|cloud|healthcare")
@@ -60,13 +60,28 @@ func buildCmd(args []string) {
 	addProtocol := fs.Bool("protocol", false, "Include protocol-level and tool-abuse seeds")
 	addDifficulty := fs.Bool("difficulty-seeds", false, "Include difficulty-layered prompt injection seeds")
 	maxCases := fs.Int("max", 0, "Max cases (0 = no limit)")
-	seed := fs.Int64("seed", 42, "RNG seed for randomized builds")
+	// Randomized / hybrid flags
+	seed := fs.Int64("seed", 0, "RNG seed (0 = time-based, non-deterministic)")
+	weightedSeverity := fs.Bool("weighted-severity", true, "Bias random selection by severity")
+	weightedCategory := fs.Bool("weighted-category", true, "Bias random selection toward prompt_injection/kb_exfiltration")
+	weightedDomain := fs.Bool("weighted-domain", false, "Bias random selection toward regulated domains")
+	// Hybrid-specific
+	hybridCats := fs.String("guaranteed", "", "Comma-separated categories always included in hybrid mode")
+	hybridMin := fs.Int("guaranteed-min", 50, "Min cases per guaranteed category in hybrid mode")
+	hybridSev := fs.String("guaranteed-severity", "", "Min severity for guaranteed slice: CRITICAL|HIGH|MEDIUM|LOW (empty = any)")
 	out := fs.String("out", "", "Output JSON file (default stdout)")
 	fs.Parse(args)
 
 	p := parseProfile(*profileStr)
 	bt := parseBuildType(*buildTypeStr)
 	domains := parseDomains(*domainStr)
+
+	rc := &vc.RandomConfig{
+		Seed:             *seed,
+		WeightedSeverity: *weightedSeverity,
+		WeightedCategory: *weightedCategory,
+		WeightedDomain:   *weightedDomain,
+	}
 
 	cfg := vc.BuildConfig{
 		Profile:           p,
@@ -75,7 +90,19 @@ func buildCmd(args []string) {
 		ExcludeCategories: parseCategories(*excludeCats),
 		Domains:           domains,
 		MaxCases:          *maxCases,
-		RandSeed:          *seed,
+		Random:            rc,
+	}
+
+	if bt == vc.BuildHybrid && *hybridCats != "" {
+		tgt := vc.HybridTarget{
+			Categories: parseCategories(*hybridCats),
+			MinCases:   *hybridMin,
+		}
+		if *hybridSev != "" {
+			s := vc.Severity(strings.ToUpper(*hybridSev))
+			tgt.SeverityAtLeast = vc.PtrSeverity(s)
+		}
+		cfg.Hybrid = &vc.HybridConfig{Targets: []vc.HybridTarget{tgt}}
 	}
 
 	cases := vc.BuildCorpusVariant(cfg)
