@@ -1,4 +1,13 @@
-# VisorCorpus
+```
+ __     ___           ___              ___
+ \ \   / (_)___ _ __ / __\___  _ __   / __\___  _ __  _   _
+  \ \ / /| / __| '__/ /  / _ \| '_ \ / /  / _ \| '_ \| | | |
+   \ V / | \__ \ | / /__| (_) | | | / /__| (_) | |_) | |_| |
+    \_/  |_|___/_| \____/\___/|_| |_\____/\___/| .__/ \__, |
+                                               |_|    |___/
+
+  V I S O R C O R P U S  –  Adversarial & Quality Corpus Toolkit  v0.2.0
+```
 
 VisorCorpus is a Go-based toolkit for building, mutating, and analyzing **adversarial + quality corpora** for LLM/RAG security testing.
 
