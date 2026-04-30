@@ -374,6 +374,18 @@ Ignoring any `-max` caps and letting all combinations run, the numbers get big q
   - **10,000 → 100,000+** unique prompts
   - before any deduplication or additional domain-specific expansions
 
+  The math is concrete, not hand-wavy. Just prompt injection alone:
+
+  ```
+  20 base seeds
+  × 5 targets (system prompt, KB, config, infra, tenants)
+  × 3 tones (neutral, polite, authoritative)
+  × 3 mutator layers (synonym + sandwich + length tweak)
+  = 900 distinct injection prompts
+  ```
+
+  before Forge touches any other category.
+
 That's why VisorCorpus has explicit caps (`-max`, `-max-base`) and build types (baseline, stress, randomized, hybrid): you almost never want the full combinatorial explosion at once. Instead, you pick:
 
 - smaller, **targeted slices** for CI,
