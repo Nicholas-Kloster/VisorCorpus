@@ -4,13 +4,32 @@
 ============================================================  v0.2.0
 ```
 
-VisorCorpus is a Go-based toolkit for building, mutating, and analyzing **adversarial + quality corpora** for LLM/RAG security testing.
+Introducing **VisorCorpus** – a Go-powered toolkit for stress‑testing your LLM/RAG systems.
 
-It's designed as a standalone component you can plug into:
+If you're shipping anything built on LLMs, you *need* to know how it behaves under:
 
-- Your **attack-sim** harness (e.g., to hit `/chat` or direct LLM APIs).
-- CI/CD pipelines (safety & quality gates).
-- Manual "red team" style experiments.
+- Prompt injection
+- KB exfiltration
+- Cross‑tenant leaks
+- System prompt / config probing
+- Infra discovery & jailbreak attempts
+
+VisorCorpus gives you:
+
+- Structured **AttackCases** with expectations for both safety *and* quality
+- Domain‑aware seeds (HR, Finance, Cloud, Healthcare)
+- A **Forge** engine to expand seeds into large adversarial spaces using deterministic mutations (paraphrasing, synonym swaps, politeness/authority shifts, length tweaks, sandwich/reorder patterns)
+- Multiple corpus "builds": baseline, stress, focused, regression, randomized, hybrid
+- Stats + failure explorer so you can compare **defense configs** (system prompts + model settings) and track improvements over time
+
+Use it as:
+
+- A **CLI** to emit JSON corpora for your `/chat` or direct‑LLM attack harness
+- A **Go library** inside CI/CD to gate new models and prompts on safety *and* benign answer quality
+
+If you care about LLM/RAG security and don't want to fly blind, this is for you.
+
+---
 
 Key capabilities:
 
