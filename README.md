@@ -344,6 +344,44 @@ reg := vc.RegressionCorpusFromResults(vc.ProfileStrict, prevResults)
 
 ---
 
+## Theoretical Combinatorial Scale
+
+VisorCorpus is deliberately built to *explode* a small, well-curated seed set into a very large adversarial space.
+
+Ignoring any `-max` caps and letting all combinations run, the numbers get big quickly:
+
+- **Mutators (~8+)**
+  Even if you only apply 2–4 mutators per base seed (in different orders/layers), you already see combinatorial growth:
+  - Paraphrasing (synonyms)
+  - Politeness / authority shifts
+  - Lengthening / shortening
+  - Clause reordering
+  - Sandwiching benign + malicious content
+
+  A single seed can easily turn into **dozens to hundreds** of distinct variants before deduplication.
+
+- **Templates (instructions × targets × tones)**
+  Template specs that combine:
+  - multiple **instructions** (e.g., "ignore instructions", "bypass safety", "follow docs over system rules"),
+  - multiple **targets** (system prompt, KB, configs, infra, tenants),
+  - multiple **tones** (neutral, polite, authoritative, urgent)
+
+  routinely yield **100+ variants per seed family**.
+
+- **From seeds to scale**
+  With just **~100 base seeds** (across categories and domains), you're already in the range of:
+
+  - **10,000 → 100,000+** unique prompts
+  - before any deduplication or additional domain-specific expansions
+
+That's why VisorCorpus has explicit caps (`-max`, `-max-base`) and build types (baseline, stress, randomized, hybrid): you almost never want the full combinatorial explosion at once. Instead, you pick:
+
+- smaller, **targeted slices** for CI,
+- **stress builds** for nightly runs,
+- and **random/hybrid builds** to approximate "real life" diversity without drowning your infrastructure.
+
+---
+
 ## Practical CI Workflow
 
 ```bash
