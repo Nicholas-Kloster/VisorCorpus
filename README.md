@@ -33,6 +33,51 @@ If you care about LLM/RAG security and don't want to fly blind, this is for you.
 
 ---
 
+## Using VisorCorpus with Claude Code
+
+### Setup
+
+```bash
+# Clone and build the CLI
+git clone https://github.com/Nicholas-Kloster/VisorCorpus
+cd VisorCorpus
+go build -o visorcorpus ./cmd/visorcorpus
+```
+
+Or use as a library:
+
+```bash
+go get github.com/Nicholas-Kloster/VisorCorpus
+```
+
+### Typical Claude Code workflow
+
+```bash
+# 1. Build a focused corpus for a CI run
+visorcorpus build \
+  -profile strict -type hybrid -max 400 -seed $CI_BUILD_ID \
+  -guaranteed prompt_injection,kb_exfiltration \
+  -guaranteed-min 60 -guaranteed-severity HIGH \
+  -out corpus_ci.json
+
+# 2. Inspect what you built before running it
+visorcorpus stats -in corpus_ci.json
+visorcorpus query -in corpus_ci.json -difficulty hard -json | head -c 2000
+
+# 3. Run your attack harness
+attack-sim -corpus corpus_ci.json -target http://localhost:8080/chat \
+  -out results_ci.json
+
+# 4. Build a regression corpus from any failures
+visorcorpus regress -in results_ci.json -out regression.json
+
+# 5. On the next run, hit those regression cases first
+attack-sim -corpus regression.json -out results_regression.json
+visorfail -in results_regression.json -by category
+```
+
+---
+
 Key capabilities:
 
 - Rich corpus **templates** and **seed sets** for:
@@ -413,104 +458,6 @@ visorcorpus regress -in results_nightly.json -out regression.json
 attack-sim -corpus regression.json -out results_regression.json
 visorfail -in results_regression.json
 ```
-
----
-
-## Using VisorCorpus with Claude Code
-
-### Setup
-
-```bash
-# Clone and build the CLI
-git clone https://github.com/Nicholas-Kloster/VisorCorpus
-cd VisorCorpus
-go build -o visorcorpus ./cmd/visorcorpus
-```
-
-Or use as a library:
-
-```bash
-go get github.com/Nicholas-Kloster/VisorCorpus
-```
-
-### Library quickstart
-
-```go
-import vc "github.com/Nicholas-Kloster/VisorCorpus/pkg/corpus"
-
-// Build a strict baseline corpus
-cases := vc.CorpusForProfile(vc.ProfileStrict)
-
-// Add HR and cloud domain seeds
-cases = vc.AddDomainSeeds(cases, vc.ProfileStrict, vc.DomainHR)
-cases = vc.AddDomainSeeds(cases, vc.ProfileStrict, vc.DomainCloud)
-
-// Hybrid build: guarantee 50 HIGH+ prompt injection + KB exfil cases,
-// fill the rest randomly up to 400 total
-hybridCases := vc.BuildCorpusVariant(vc.BuildConfig{
-    Profile:   vc.ProfileStrict,
-    BuildType: vc.BuildHybrid,
-    MaxCases:  400,
-    Hybrid: &vc.HybridConfig{
-        Targets: []vc.HybridTarget{
-            {
-                Categories:      []vc.Category{vc.CategoryPromptInjection, vc.CategoryKBExfiltration},
-                MinCases:        50,
-                SeverityAtLeast: vc.PtrSeverity(vc.SeverityHigh),
-            },
-        },
-    },
-    Random: &vc.RandomConfig{
-        Seed:             42,
-        WeightedSeverity: true,
-        WeightedCategory: true,
-    },
-})
-
-// Run your attack harness, then evaluate each response
-for _, ac := range hybridCases {
-    resp := callYourLLM(ac.Prompt) // your implementation
-    status, reason := vc.EvaluateResponse(ac, resp)
-    result := vc.Result{
-        Case:       ac,
-        ModelName:  "your-model",
-        Target:     "/chat",
-        Status:     status,
-        Reason:     reason,
-        Response:   resp,
-        OccurredAt: time.Now().UTC().Format(time.RFC3339),
-    }
-    _ = result // collect, write to JSON, feed to visorfail
-}
-```
-
-### Typical Claude Code workflow
-
-```bash
-# 1. Build a focused corpus for a CI run
-visorcorpus build \
-  -profile strict -type hybrid -max 400 -seed $CI_BUILD_ID \
-  -guaranteed prompt_injection,kb_exfiltration \
-  -guaranteed-min 60 -guaranteed-severity HIGH \
-  -out corpus_ci.json
-
-# 2. Inspect what you built before running it
-visorcorpus stats -in corpus_ci.json
-visorcorpus query -in corpus_ci.json -difficulty hard -json | head -c 2000
-
-# 3. Run your attack harness
-attack-sim -corpus corpus_ci.json -target http://localhost:8080/chat \
-  -out results_ci.json
-
-# 4. Build a regression corpus from any failures
-visorcorpus regress -in results_ci.json -out regression.json
-
-# 5. On the next run, hit those regression cases first
-attack-sim -corpus regression.json -out results_regression.json
-visorfail -in results_regression.json -by category
-```
-
----
 
 ## Status
 
