@@ -1,4 +1,8 @@
 [![Claude Code Friendly](https://img.shields.io/badge/Claude_Code-Friendly-blueviolet?logo=anthropic&logoColor=white)](https://claude.ai/code)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8.svg?logo=go&logoColor=white)](https://golang.org/)
+[![Maintained by NuClide](https://img.shields.io/badge/Maintained%20by-NuClide-purple.svg)](https://nuclide-research.com)
+[![Version](https://img.shields.io/badge/version-v0.2.0-green.svg)](cmd/visorcorpus/main.go)
 
 ```
 ============================================================
@@ -36,6 +40,8 @@ If you care about LLM/RAG security and don't want to fly blind, this is for you.
 ## Using VisorCorpus with Claude Code
 
 ### Setup
+
+Pre-built sample corpora live in [`examples/`](examples/) — useful as schema reference before you build your own.
 
 ```bash
 # Clone and build the CLI

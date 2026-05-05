@@ -1,0 +1,32 @@
+# Go build artifacts at repo root (cmd/* names match -o targets)
+/visorcorpus
+/visorforge
+/visorfail
+/attack-sim
+/corpus-dump
+
+# Go binaries cross-compiled
+*.exe
+*.test
+*.out
+
+# Coverage / profiling
+coverage.out
+*.prof
+*.pprof
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Local scratch JSON corpora (committed examples live in examples/)
+/corpus_*.json
+/results_*.json
+/regression*.json
+
+# Env files
+.env
+.env.local
